@@ -32,4 +32,29 @@ public class QuizItem {
     public double getAnswer() {
         return answer;
     }
+    public String toString() {
+        String op ="";
+        String correctAnswer ="";
+        if (operator == Operator.Addition) {
+            op ="+";
+            correctAnswer = Integer.toString((int)Math.round(leftOperand+rightOperand));
+        } else if (operator == Operator.Subtraction){
+            op ="-";
+            correctAnswer = Integer.toString((int)Math.round(leftOperand-rightOperand));
+        } else if (operator == Operator.Multiplication) {
+            op ="x";
+            correctAnswer = Integer.toString((int)Math.round(leftOperand*rightOperand));
+        } else if (operator == Operator.Division) {
+            op ="/";
+            correctAnswer = Double.toString(((double)Math.round((leftOperand/rightOperand)*100))/100);
+        }
+        String mark ="";
+        if (correctAnswer.equals(Integer.toString((int)Math.round(answer)))) {
+            mark ="";
+        } else {
+            mark ="Wrong";
+        }
+        String msg = "   "+ Integer.toString((int)Math.round(leftOperand)) +"  "+op+"  "+Integer.toString((int)Math.round(rightOperand)) +"  =  "+Integer.toString((int)Math.round(answer)) + " "+mark;
+        return msg;
+    }
 }

@@ -1,15 +1,27 @@
 package com.dailymathtest.joy.dailymath.common
-
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.Handler
+import android.os.Looper
+import android.widget.TextView
+import com.dailymathtest.joy.dailymath.R
+import com.dailymathtest.joy.dailymath.controllers.UnsafeOkHttpClient2
 import com.dailymathtest.joy.dailymath.models.Quiz
+import com.dailymathtest.joy.dailymath.models.QuizItem
 import com.dailymathtest.joy.dailymath.models.QuizItemReturn
 import com.google.gson.GsonBuilder
-import java.util.*
+import okhttp3.*
+import java.io.IOException
+
+import java.util.Collections.shuffle
 import kotlin.math.roundToInt
 
 class MathTestHelper constructor(pref:SharedPreferences) {
-    val pref = pref
+    companion object{
+        //val ADDRESS = "http://192.168.29.188/api"
+        val ADDRESS = "http://10.0.3.2:3000/api"
+    }
+    private val pref = pref
     fun createQuiz(): Quiz {
         val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
         //val pref = applicationContext.getSharedPreferences("appData", Context.MODE_PRIVATE) // for private mode
@@ -66,7 +78,7 @@ class MathTestHelper constructor(pref:SharedPreferences) {
                   "leftOperand": 6908,
                   "rightOperand": 3884,
                   "operator": 1,
-                  "answer": 0,
+                  "answer": 0,"https://localh
                   "quizId": 1,
                   "id": 5
                 },
@@ -117,23 +129,30 @@ class MathTestHelper constructor(pref:SharedPreferences) {
             val fakeQuiz =gson.fromJson(str, Quiz::class.java)
             val editor =pref.edit()
             editor.putString("quizjson", gson.toJson(fakeQuiz))
-            editor.commit()
+            editor.apply()
             return fakeQuiz
         } else {
             val fakeQuiz = gson.fromJson(quizjson, Quiz::class.java)
             return fakeQuiz
         }
     }
-    fun getQuizItem(id: Int, pref: SharedPreferences): QuizItemReturn {
+    fun getQuizItemByQuizItemId (quizItemId:Int, quiz:Quiz ) : QuizItem? {
+        quiz.quizItems!!.forEach { item->
+            if (quizItemId == item.id) {
+                return item
+            }
+        }
+        return null
+    }
+    fun getQuizItem(id: Int): QuizItemReturn {
         //get the quiz from the sharedpreferences
         val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
         val jsonstr = pref.getString("quizjson","DEFAULT")
         val fakeQuiz =gson.fromJson(jsonstr,Quiz::class.java)
-        val quizItem =fakeQuiz.quizItems[id]
+        val quizItem = getQuizItemByQuizItemId(id,fakeQuiz)
         var opt =" "
         val answers : MutableList<Int> = arrayListOf()
-        val random = Random()
-        if (quizItem.operator == com.dailymathtest.joy.dailymath.models.Operator.Addition) {
+        if (quizItem!!.operator == com.dailymathtest.joy.dailymath.models.Operator.Addition) {
             opt = "+"
             val numb0 = quizItem.leftOperand.roundToInt() + quizItem.rightOperand.roundToInt()
             val numb1 =quizItem.leftOperand.roundToInt() + quizItem.rightOperand.roundToInt() +(0..100).shuffled().last()
@@ -143,7 +162,6 @@ class MathTestHelper constructor(pref:SharedPreferences) {
             answers.add(numb1)
             answers.add(numb2)
             answers.add(numb3)
-
         } else if (quizItem.operator == com.dailymathtest.joy.dailymath.models.Operator.Subtraction) {
             opt ="-"
             val numb0 = quizItem.leftOperand.roundToInt() - quizItem.rightOperand.roundToInt()
@@ -155,8 +173,40 @@ class MathTestHelper constructor(pref:SharedPreferences) {
             answers.add(numb2)
             answers.add(numb3)
         }
+        shuffle(answers)
         val quizItemStr = quizItem.leftOperand.roundToInt().toString() + " "+opt+ " "+ quizItem.rightOperand.roundToInt().toString() + " = "
         val ret = QuizItemReturn(quizItemStr,answers)
         return ret
+    }
+    fun fetchQuizFromServerAndStore(studentId: String, tv:TextView?) {
+        //val editor = pref.edit()
+        val url = MathTestHelper.ADDRESS+"/Quiz"
+        val jsonstr = "{\"studentId\":\"${studentId}\"}"
+        val JSON = MediaType.parse("application/json; charset=utf-8")
+        val formBody = RequestBody.create(JSON, jsonstr)
+        val request = Request.Builder().url(url).post(formBody).build()
+        val client = UnsafeOkHttpClient2.getUnsafeOkHttpClient()
+        var newQuiz: Quiz
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
+                println("Failure to excute method")
+            }
+            override fun onResponse(call: Call, response: Response) {
+                println("********************************Reach fetchStudentFromServerAndStore")
+                val body = response.body()?.string()
+                val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
+                newQuiz = gson.fromJson(body, Quiz::class.java)
+                val editor = pref.edit()
+                editor.putString("quizjson", gson.toJson(newQuiz))
+                editor.apply()
+                if (tv !=null) {
+                    Handler(Looper.getMainLooper()).post {
+                        tv.text = "Welcome " + pref.getString("firstName","DEFAULT") + " "+ pref.getString("lastName","DEFAULT")
+                    }
+                }
+
+            }
+        })
     }
 }

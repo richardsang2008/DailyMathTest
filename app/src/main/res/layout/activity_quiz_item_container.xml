@@ -69,15 +69,6 @@
         android:onClick="previousBtnClick"
         tools:layout_editor_absoluteX="128dp" />
 
-    <Button
-        android:id="@+id/scorebutton"
-        android:layout_width="89dp"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Score"
-        app:layout_constraintTop_toBottomOf="@+id/previousImageButton"
-        tools:layout_editor_absoluteX="148dp" />
-
     <ImageButton
         android:id="@+id/nextImageButton"
         android:layout_width="wrap_content"

@@ -15,30 +15,56 @@ import android.view.View
 import android.widget.TextView
 import com.dailymathtest.joy.dailymath.common.MathTestHelper
 import com.google.android.gms.common.AccountPicker
-import com.dailymathtest.joy.dailymath.controllers.UnsafeOkHttpClient
+import com.dailymathtest.joy.dailymath.controllers.UnsafeOkHttpClient2
 import com.dailymathtest.joy.dailymath.models.Quiz
-
 import com.dailymathtest.joy.dailymath.models.Student
+import com.google.android.gms.security.ProviderInstaller
 import com.google.gson.GsonBuilder
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.Request
-import okhttp3.Response
-import org.json.JSONObject
+import okhttp3.*
+
 import java.io.IOException
 
 
 class MainActivity : AppCompatActivity() {
 
-    fun fetchStudentFromServerAndStore(username: String) {
-        val url = "https://10.0.3.2:5001/api/Student/byEmail?email="+username
+    fun fetchQuizFromServerAndStore(studentId: String) {
+        val pref = applicationContext.getSharedPreferences("appData", Context.MODE_PRIVATE) // for private mode
+        val editor = pref.edit()
+        val url = MathTestHelper.ADDRESS+"/Quiz"
+        val jsonstr = "{\"studentId\":\"${studentId}\"}"
+        val JSON = MediaType.parse("application/json; charset=utf-8")
+        val formBody = RequestBody.create(JSON, jsonstr)
+        val request = Request.Builder().url(url).post(formBody).build()
+        val client = UnsafeOkHttpClient2.getOkHttpClient()
+        //val client = UnsafeOkHttpClient2.getUnsafeOkHttpClient()
+        var newQuiz: Quiz
+        client.newCall(request).enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                e.printStackTrace()
+                println("Failure to excute method")
+            }
+            override fun onResponse(call: Call, response: Response) {
+                println("********************************Reach fetchStudentFromServerAndStore")
+                val body = response.body()?.string()
+                val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
+                newQuiz = gson.fromJson(body, Quiz::class.java)
+                val editor = pref.edit()
+                editor.putString("quizjson", gson.toJson(newQuiz))
+                editor.apply()
+                goMainActivity(pref)
+            }
+        })
+    }
+    fun fetchStudentAndQuizFromServerAndStore(username: String) {
+        val url = MathTestHelper.ADDRESS+"/Student/byEmail?email="+username
         val request = Request.Builder().url(url).build()
-        val client = UnsafeOkHttpClient.getUnsafeOkHttpClient()
+        //val client = UnsafeOkHttpClient2.getUnsafeOkHttpClient()
+        val client = UnsafeOkHttpClient2.getOkHttpClient()
+
         client.newCall(request).enqueue(object: Callback {
             override fun onResponse(call: Call, response: Response) {
                 println("********************************Reach fetchStudentFromServerAndStore")
                 val body = response.body()?.string()
-                JSONObject(body)
                 val student = Student.fromJsonStr(body)
                 val pref = applicationContext.getSharedPreferences("appData", Context.MODE_PRIVATE) // for private mode
                 val editor = pref.edit()
@@ -47,7 +73,30 @@ class MainActivity : AppCompatActivity() {
                 editor.putString("lastName", student.lastName)
                 editor.apply()
                 println("************studentid "+student.studentId)
-                goMainActivity(pref)
+                val url = MathTestHelper.ADDRESS+"/Quiz"
+                val jsonstr = "{\"studentId\":\"${student.studentId}\"}"
+                val JSON = MediaType.parse("application/json; charset=utf-8")
+                val formBody = RequestBody.create(JSON, jsonstr)
+                val request = Request.Builder().url(url).post(formBody).build()
+                val client = UnsafeOkHttpClient2.getOkHttpClient()
+                //val client = UnsafeOkHttpClient2.getUnsafeOkHttpClient()
+                var newQuiz: Quiz
+                client.newCall(request).enqueue(object : Callback {
+                    override fun onFailure(call: Call, e: IOException) {
+                        e.printStackTrace()
+                        println("Failure to excute method")
+                    }
+                    override fun onResponse(call: Call, response: Response) {
+                        println("********************************Reach fetchStudentFromServerAndStore")
+                        val body = response.body()?.string()
+                        val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
+                        newQuiz = gson.fromJson(body, Quiz::class.java)
+                        val editor = pref.edit()
+                        editor.putString("quizjson", gson.toJson(newQuiz))
+                        editor.apply()
+                        goMainActivity(pref)
+                    }
+                })
             }
             override fun onFailure(call: Call, e: IOException) {
                 e.printStackTrace()
@@ -57,35 +106,33 @@ class MainActivity : AppCompatActivity() {
     }
     @SuppressLint("SetTextI18n")
     fun goMainActivity(pref: SharedPreferences) {
-        val helper = MathTestHelper(pref)
-        helper.createQuiz()
+
         Handler(Looper.getMainLooper()).post {
             val t = findViewById<TextView>(R.id.helloTextView)
-            t.text = "Wellcome " + pref.getString("firstName","DEFAULT") + " "+ pref.getString("lastName","DEFAULT")
+            t.text = "Welcome " + pref.getString("firstName","DEFAULT") + " "+ pref.getString("lastName","DEFAULT")
         }
     }
-    fun clearSharedPreference() {
+    fun clearSharedPreference(view:View) {
         val pref = applicationContext.getSharedPreferences("appData", Context.MODE_PRIVATE) // for private mode
         val editor = pref.edit()
         editor.clear()
         editor.apply()
-
     }
 
     fun addButtonClick(view: View) {
         try {
             val pref = applicationContext.getSharedPreferences("appData", Context.MODE_PRIVATE)
             val editor = pref.edit()
-            editor.putInt("currentpageNumber", 1)
+            val quizjson = pref.getString("quizjson","DEFAULT")
+            val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
+            val newQuiz = gson.fromJson(quizjson, Quiz::class.java)
+            val quizItemId =newQuiz.quizItems!![0].id
+            editor.putInt("currentpageNumber", quizItemId)
             editor.apply()
             val intent = Intent(this, QuizItemContainerActivity::class.java).apply {
-                putExtra("ItemNumber", 1)
-                //get the quiz from the sharedpreferences
-                //val gson = GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm:ss").create()
-                //val jsonstr = pref.getString("quizjson", "DEFAULT")
-                //gson.fromJson(jsonstr, Quiz::class.java)
+                putExtra("ItemNumber", quizItemId)
                 val helper = MathTestHelper(pref)
-                val quizItemReturn = helper.getQuizItem(0, pref)
+                val quizItemReturn = helper.getQuizItem(quizItemId)
                 putExtra("QuizItem", quizItemReturn.quizItem)
                 putExtra("choiceA", quizItemReturn.choices[0])
                 putExtra("choiceB", quizItemReturn.choices[1])
@@ -100,6 +147,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
 
+        ProviderInstaller.installIfNeeded(applicationContext)
         val pref = applicationContext.getSharedPreferences("appData", Context.MODE_PRIVATE) // for private mode
         val email = pref.getString("email","DEFAULT")
         val studentid = pref.getString("studentId","DEFAULT")
@@ -112,20 +160,21 @@ class MainActivity : AppCompatActivity() {
                 for (account in accountlist) {
                     println( "account: " + account.name + " : " + account.type)
                 }
-                if (accountlist.isEmpty()) {
+                if (accountlist.isEmpty() || accountlist.size>1) {
                     val intent = AccountPicker.newChooseAccountIntent(null, null, arrayOf("com.google"), false, null, null, null, null)
                     startActivityForResult(intent,1)
                 } else {
                     //now have the email from user
-                    fetchStudentFromServerAndStore(email)
+                    fetchStudentAndQuizFromServerAndStore(accountlist[0].name)
                 }
             } else {
                 println("I have the email now " +email)
-                fetchStudentFromServerAndStore(email)
+                fetchStudentAndQuizFromServerAndStore(email)
             }
         } else {
             try {
-                goMainActivity(pref)
+                val t = findViewById<TextView>(R.id.helloTextView)
+                MathTestHelper(pref).fetchQuizFromServerAndStore(studentid,t)
             } catch (e:Exception) {
                 println(e.stackTrace)
             }
@@ -139,8 +188,7 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode === 1 && resultCode === Activity.RESULT_OK) {
             val email = data!!.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
-            println("==============="+email)
-            fetchStudentFromServerAndStore(email)
+            fetchStudentAndQuizFromServerAndStore(email)
             val pref = applicationContext.getSharedPreferences("appData", Context.MODE_PRIVATE) // for private mode
             val editor = pref.edit()
             editor.putString("email", email)
